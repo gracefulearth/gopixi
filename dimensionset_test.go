@@ -14,7 +14,7 @@ func TestDimensionSetIndicesSampleOrder(t *testing.T) {
 		if tileSize == 0 {
 			tileSize = size
 		}
-		dims[i] = Dimension{Size: size, TileSize: tileSize}
+		dims[i] = Dimension{Size: size, TileSize: tileSize, Type: ChannelUnknown}
 	}
 
 	sampleInd := SampleIndex(0)
@@ -27,7 +27,7 @@ func TestDimensionSetIndicesSampleOrder(t *testing.T) {
 }
 
 func TestDimensionSetIndicesTileOrder(t *testing.T) {
-	dims := DimensionSet{{"", 15, 5}, {"", 60, 30}} //newRandomValidDimensionSet(5, 99, 5)
+	dims := DimensionSet{{"", 15, 5, ChannelUnknown, nil, nil}, {"", 60, 30, ChannelUnknown, nil, nil}} //newRandomValidDimensionSet(5, 99, 5)
 
 	tileInd := TileOrderIndex(0)
 	for coord := range dims.TileCoordinates() {
@@ -39,7 +39,7 @@ func TestDimensionSetIndicesTileOrder(t *testing.T) {
 }
 
 func TestDimensionSetContainsCoordinate(t *testing.T) {
-	dims := DimensionSet{{"", 10, 5}, {"", 20, 10}}
+	dims := DimensionSet{{"", 10, 5, ChannelUnknown, nil, nil}, {"", 20, 10, ChannelUnknown, nil, nil}}
 
 	tests := []struct {
 		coord    SampleCoordinate

@@ -93,6 +93,9 @@ func main() {
 			Name:     dim.Name,
 			Size:     dim.Size,
 			TileSize: tileSizes[i],
+			Type:     dim.Type,
+			Minimum:  dim.Minimum,
+			Step:     dim.Step,
 		}
 	}
 	opts := []gopixi.LayerOption{gopixi.WithCompression(srcLayer.Compression)}
