@@ -19,21 +19,24 @@ type Axis struct {
 }
 
 // Returns the size in bytes of the axis metadata as it is laid out and written to disk.
-// Returns 0 if the axis is nil.
+// Always returns at least 4 bytes for the axis type field.
 func (a *Axis) HeaderSize(h Header) int {
-	if a == nil {
-		return 0
+	// Always include 4 bytes for the axis type (even if Unknown)
+	size := 4
+	
+	if a == nil || a.Type == ChannelUnknown {
+		return size
 	}
 	
-	size := 2 + len([]byte(a.Unit)) // unit string
+	size += 2 + len([]byte(a.Unit)) // unit string
 	
 	// Add size for optional Minimum value
-	if a.Minimum != nil && a.Type != ChannelUnknown {
+	if a.Minimum != nil {
 		size += a.Type.Base().Size()
 	}
 	
 	// Add size for optional Step value
-	if a.Step != nil && a.Type != ChannelUnknown {
+	if a.Step != nil {
 		size += a.Type.Base().Size()
 	}
 	

@@ -19,10 +19,7 @@ type Dimension struct {
 func (d Dimension) HeaderSize(h Header) int {
 	size := 2 + len([]byte(d.Name)) + 2*int(h.OffsetSize) // base size: name + size + tileSize
 	
-	// Add 4 bytes for the channel type with flags
-	size += 4
-	
-	// Add size for optional axis fields
+	// Add size for axis fields (includes 4 bytes for type)
 	size += d.Axis.HeaderSize(h)
 	
 	return size

@@ -54,11 +54,11 @@ func TestAxisValidation(t *testing.T) {
 func TestAxisNilReceiver(t *testing.T) {
 	header := NewHeader(binary.LittleEndian, OffsetSize4)
 	
-	// Test that nil axis returns 0 for HeaderSize
+	// Test that nil axis returns 4 for HeaderSize (for the type field)
 	var axis *Axis = nil
 	size := axis.HeaderSize(header)
-	if size != 0 {
-		t.Errorf("expected HeaderSize to return 0 for nil axis, got %d", size)
+	if size != 4 {
+		t.Errorf("expected HeaderSize to return 4 for nil axis (type field), got %d", size)
 	}
 	
 	// Test that nil axis Write does nothing
@@ -95,14 +95,15 @@ func TestAxisHeaderSize(t *testing.T) {
 		{
 			name: "nil axis",
 			axis: nil,
-			expected: 0,
+			expected: 4, // Always includes 4 bytes for type field
 		},
 		{
-			name: "axis with unit only",
+			name: "axis with unit only (ChannelUnknown)",
 			axis: &Axis{
+				Type: ChannelUnknown,
 				Unit: "meters",
 			},
-			expected: 2 + len("meters"),
+			expected: 4, // Only type field, unit is not written for Unknown type
 		},
 		{
 			name: "axis with float32 min and step",
@@ -112,7 +113,7 @@ func TestAxisHeaderSize(t *testing.T) {
 				Step:    float32(1.0),
 				Unit:    "seconds",
 			},
-			expected: 2 + len("seconds") + 4 + 4, // unit + min + step
+			expected: 4 + 2 + len("seconds") + 4 + 4, // type + unit + min + step
 		},
 		{
 			name: "axis with int64 min and step",
@@ -122,7 +123,7 @@ func TestAxisHeaderSize(t *testing.T) {
 				Step:    int64(1),
 				Unit:    "",
 			},
-			expected: 2 + 8 + 8, // unit + min + step
+			expected: 4 + 2 + 8 + 8, // type + unit + min + step
 		},
 	}
 	
