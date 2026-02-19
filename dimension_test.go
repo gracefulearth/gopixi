@@ -323,7 +323,7 @@ func TestDimensionMaximum(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var got any
+			var got any = nil
 			if test.dimension.Axis != nil && test.dimension.Size > 0 {
 				got = test.dimension.Axis.AxisValue(test.dimension.Size - 1)
 			}
