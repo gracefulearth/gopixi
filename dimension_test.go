@@ -225,7 +225,7 @@ func TestDimensionAxisValue(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := test.dimension.AxisValue(test.index)
+			got := test.dimension.Axis.AxisValue(test.index)
 			if !reflect.DeepEqual(got, test.want) {
 				t.Errorf("got %v (%T), want %v (%T)", got, got, test.want, test.want)
 			}
@@ -323,7 +323,7 @@ func TestDimensionMaximum(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := test.dimension.Maximum()
+			got := test.dimension.Axis.Maximum(test.dimension.Size)
 			if !reflect.DeepEqual(got, test.want) {
 				t.Errorf("got %v (%T), want %v (%T)", got, got, test.want, test.want)
 			}

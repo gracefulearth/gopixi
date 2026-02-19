@@ -133,18 +133,3 @@ func (d *Dimension) Read(r io.Reader, h Header) error {
 func (d Dimension) String() string {
 	return d.Name + "(" + strconv.Itoa(d.Size) + " / " + strconv.Itoa(d.TileSize) + ")"
 }
-
-// Returns the axis value at the given dimension index i.
-// The value is calculated as: i * step + minimum
-// Returns nil if the dimension does not have axis information.
-func (d Dimension) AxisValue(i int) any {
-	return d.Axis.AxisValue(i)
-}
-
-// Returns the maximum axis value based on the dimension size.
-// The maximum is calculated as: (Size - 1) * step + minimum
-// Returns nil if the dimension does not have axis information.
-// Note: Maximum is not serialized to the file as it can be derived from Size.
-func (d Dimension) Maximum() any {
-	return d.Axis.Maximum(d.Size)
-}
