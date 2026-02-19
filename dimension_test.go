@@ -14,7 +14,6 @@ func TestDimensionHeaderSize(t *testing.T) {
 	for _, header := range headers {
 		nameLen := rand.Intn(30)
 		name := string(make([]byte, nameLen))
-		
 		// Test dimension without axis info
 		dim := Dimension{
 			Name:     name,
