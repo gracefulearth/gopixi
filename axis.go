@@ -58,20 +58,23 @@ func (a *Axis) Write(w io.Writer, h Header) error {
 		return err
 	}
 	
-	// Write Minimum value
-	minBytes := make([]byte, a.Type.Base().Size())
-	a.Type.Base().PutValue(a.Minimum, h.ByteOrder, minBytes)
-	_, err = w.Write(minBytes)
-	if err != nil {
-		return err
-	}
-	
-	// Write Step value
-	stepBytes := make([]byte, a.Type.Base().Size())
-	a.Type.Base().PutValue(a.Step, h.ByteOrder, stepBytes)
-	_, err = w.Write(stepBytes)
-	if err != nil {
-		return err
+	// Only write Minimum and Step if Type is not Unknown
+	if a.Type != ChannelUnknown {
+		// Write Minimum value
+		minBytes := make([]byte, a.Type.Base().Size())
+		a.Type.Base().PutValue(a.Minimum, h.ByteOrder, minBytes)
+		_, err = w.Write(minBytes)
+		if err != nil {
+			return err
+		}
+		
+		// Write Step value
+		stepBytes := make([]byte, a.Type.Base().Size())
+		a.Type.Base().PutValue(a.Step, h.ByteOrder, stepBytes)
+		_, err = w.Write(stepBytes)
+		if err != nil {
+			return err
+		}
 	}
 	
 	return nil
