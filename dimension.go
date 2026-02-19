@@ -63,10 +63,11 @@ func (d Dimension) Write(w io.Writer, h Header) error {
 	// Determine axis type and flags
 	var axisType ChannelType
 	if d.Axis != nil {
-		axisType = d.Axis.Type.WithMin(d.Axis.Minimum != nil).WithMax(d.Axis.Step != nil)
+		// It is invalid to have axis metadata with an unknown channel type
 		if d.Axis.Type == ChannelUnknown {
-			axisType = ChannelUnknown
+			return ErrFormat("axis type ChannelUnknown is invalid when axis metadata is present")
 		}
+		axisType = d.Axis.Type.WithMin(d.Axis.Minimum != nil).WithMax(d.Axis.Step != nil)
 	} else {
 		axisType = ChannelUnknown
 	}
@@ -114,7 +115,7 @@ func (d *Dimension) Read(r io.Reader, h Header) error {
 	axisType := encodedType.Base()
 	
 	// Check if axis information is present
-	if axisType != ChannelUnknown || encodedType.HasMin() || encodedType.HasMax() {
+	if axisType != ChannelUnknown {
 		d.Axis = &Axis{}
 		err = d.Axis.Read(r, h, encodedType)
 		if err != nil {

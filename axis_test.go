@@ -98,14 +98,6 @@ func TestAxisHeaderSize(t *testing.T) {
 			expected: 4, // Always includes 4 bytes for type field
 		},
 		{
-			name: "axis with unit only (ChannelUnknown)",
-			axis: &Axis{
-				Type: ChannelUnknown,
-				Unit: "meters",
-			},
-			expected: 4, // Only type field, unit is not written for Unknown type
-		},
-		{
 			name: "axis with float32 min and step",
 			axis: &Axis{
 				Type:    ChannelFloat32,

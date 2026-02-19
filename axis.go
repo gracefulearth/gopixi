@@ -18,10 +18,10 @@ type Axis struct {
 	Unit    string      // Optional unit description for the axis values (e.g., "seconds", "meters", "nm").
 }
 
-// Returns the size in bytes of the axis metadata as it is laid out and written to disk.
-// Always returns at least 4 bytes for the axis type field.
+// Returns the size in bytes that this axis contributes to the dimension header on disk.
+// Always accounts for at least 4 bytes used by the axis type field (written by Dimension.Write).
 func (a *Axis) HeaderSize(h Header) int {
-	// Always include 4 bytes for the axis type (even if Unknown)
+	// Always include 4 bytes in the size for the axis type (even if Unknown)
 	size := 4
 	
 	if a == nil || a.Type == ChannelUnknown {
@@ -55,14 +55,14 @@ func (a *Axis) Write(w io.Writer, h Header) error {
 		return ErrFormat("axis with type must have both minimum and step values")
 	}
 	
-	// Write unit string
-	err := h.WriteFriendly(w, a.Unit)
-	if err != nil {
-		return err
-	}
-	
-	// Only write Minimum and Step if Type is not Unknown
+	// Only write axis data if Type is not Unknown
 	if a.Type != ChannelUnknown {
+		// Write unit string
+		err := h.WriteFriendly(w, a.Unit)
+		if err != nil {
+			return err
+		}
+		
 		// Write Minimum value
 		minBytes := make([]byte, a.Type.Base().Size())
 		a.Type.Base().PutValue(a.Minimum, h.ByteOrder, minBytes)
