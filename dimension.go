@@ -5,14 +5,6 @@ import (
 	"strconv"
 )
 
-// Represents optional axis metadata that describes the units and range of a dimension.
-type Axis struct {
-	Type    ChannelType // The pixi data type of the axis values. Same as channel data types.
-	Minimum any         // The starting value of the axis at dimension index 0. Must match Type if present.
-	Step    any         // The increment value as the index increments. Must match Type if present.
-	Unit    string      // Optional unit description for the axis values (e.g., "seconds", "meters", "nm").
-}
-
 // Represents an axis along which tiled, gridded data is stored in a Pixi file. Data sets can have
 // one or more dimensions, but never zero. If a dimension is not tiled, then the TileSize should be
 // the same as a the total Size.
@@ -30,21 +22,8 @@ func (d Dimension) HeaderSize(h Header) int {
 	// Add 4 bytes for the channel type with flags
 	size += 4
 	
-	// Add size for optional axis fields if Axis is present
-	if d.Axis != nil {
-		// Add size for unit string
-		size += 2 + len([]byte(d.Axis.Unit))
-		
-		// Add size for optional Minimum value
-		if d.Axis.Minimum != nil && d.Axis.Type != ChannelUnknown {
-			size += d.Axis.Type.Base().Size()
-		}
-		
-		// Add size for optional Step value
-		if d.Axis.Step != nil && d.Axis.Type != ChannelUnknown {
-			size += d.Axis.Type.Base().Size()
-		}
-	}
+	// Add size for optional axis fields
+	size += d.Axis.HeaderSize(h)
 	
 	return size
 }
@@ -101,36 +80,8 @@ func (d Dimension) Write(w io.Writer, h Header) error {
 		return err
 	}
 	
-	// Write axis fields if Axis is present
-	if d.Axis != nil {
-		// Write unit string
-		err = h.WriteFriendly(w, d.Axis.Unit)
-		if err != nil {
-			return err
-		}
-		
-		// Write optional Minimum value
-		if d.Axis.Minimum != nil && d.Axis.Type != ChannelUnknown {
-			minBytes := make([]byte, d.Axis.Type.Base().Size())
-			d.Axis.Type.Base().PutValue(d.Axis.Minimum, h.ByteOrder, minBytes)
-			_, err = w.Write(minBytes)
-			if err != nil {
-				return err
-			}
-		}
-		
-		// Write optional Step value
-		if d.Axis.Step != nil && d.Axis.Type != ChannelUnknown {
-			stepBytes := make([]byte, d.Axis.Type.Base().Size())
-			d.Axis.Type.Base().PutValue(d.Axis.Step, h.ByteOrder, stepBytes)
-			_, err = w.Write(stepBytes)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	
-	return nil
+	// Write axis fields using Axis method
+	return d.Axis.Write(w, h)
 }
 
 // Reads a description of the dimension from the given binary stream, according to the specification
@@ -162,40 +113,15 @@ func (d *Dimension) Read(r io.Reader, h Header) error {
 		return err
 	}
 	
-	// Extract base type and flags
+	// Extract base type
 	axisType := encodedType.Base()
 	
 	// Check if axis information is present
 	if axisType != ChannelUnknown || encodedType.HasMin() || encodedType.HasMax() {
-		d.Axis = &Axis{
-			Type: axisType,
-		}
-		
-		// Read unit string
-		unit, err := h.ReadFriendly(r)
+		d.Axis = &Axis{}
+		err = d.Axis.Read(r, h, encodedType)
 		if err != nil {
 			return err
-		}
-		d.Axis.Unit = unit
-		
-		// Read optional Minimum value
-		if encodedType.HasMin() && axisType != ChannelUnknown {
-			minBytes := make([]byte, axisType.Size())
-			_, err = r.Read(minBytes)
-			if err != nil {
-				return err
-			}
-			d.Axis.Minimum = axisType.Value(minBytes, h.ByteOrder)
-		}
-		
-		// Read optional Step value
-		if encodedType.HasMax() && axisType != ChannelUnknown {
-			stepBytes := make([]byte, axisType.Size())
-			_, err = r.Read(stepBytes)
-			if err != nil {
-				return err
-			}
-			d.Axis.Step = axisType.Value(stepBytes, h.ByteOrder)
 		}
 	} else {
 		d.Axis = nil
@@ -212,12 +138,7 @@ func (d Dimension) String() string {
 // The value is calculated as: i * step + minimum
 // Returns nil if the dimension does not have axis information.
 func (d Dimension) AxisValue(i int) any {
-	if d.Axis == nil || d.Axis.Type == ChannelUnknown || d.Axis.Minimum == nil || d.Axis.Step == nil {
-		return nil
-	}
-	
-	// Calculate i * step + minimum based on the type
-	return d.Axis.Type.AxisValue(i, d.Axis.Minimum, d.Axis.Step)
+	return d.Axis.AxisValue(i)
 }
 
 // Returns the maximum axis value based on the dimension size.
@@ -225,8 +146,5 @@ func (d Dimension) AxisValue(i int) any {
 // Returns nil if the dimension does not have axis information.
 // Note: Maximum is not serialized to the file as it can be derived from Size.
 func (d Dimension) Maximum() any {
-	if d.Size <= 0 {
-		return nil
-	}
-	return d.AxisValue(d.Size - 1)
+	return d.Axis.Maximum(d.Size)
 }
