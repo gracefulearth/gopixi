@@ -135,9 +135,7 @@ func main() {
 				Name:     dim.Name,
 				Size:     newSize,
 				TileSize: newTileSize,
-				Type:     dim.Type,
-				Minimum:  dim.Minimum,
-				Step:     dim.Step,
+				Axis:     dim.Axis,
 			}
 		}
 

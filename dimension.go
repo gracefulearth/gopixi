@@ -5,16 +5,22 @@ import (
 	"strconv"
 )
 
+// Represents optional axis metadata that describes the units and range of a dimension.
+type Axis struct {
+	Type    ChannelType // The pixi data type of the axis values. Same as channel data types.
+	Minimum any         // The starting value of the axis at dimension index 0. Must match Type if present.
+	Step    any         // The increment value as the index increments. Must match Type if present.
+	Unit    string      // Optional unit description for the axis values (e.g., "seconds", "meters", "nm").
+}
+
 // Represents an axis along which tiled, gridded data is stored in a Pixi file. Data sets can have
 // one or more dimensions, but never zero. If a dimension is not tiled, then the TileSize should be
 // the same as a the total Size.
 type Dimension struct {
-	Name     string      // Friendly name to refer to the dimension in the layer.
-	Size     int         // The total number of elements in the dimension.
-	TileSize int         // The size of the tiles in the dimension. Does not need to be a factor of Size.
-	Type     ChannelType // Optional type of the axis values. Same as channel data types.
-	Minimum  any         // Optional starting value of the axis at dimension index 0. Must match Type if present.
-	Step     any         // Optional increment value as the index increments. Must match Type if present.
+	Name     string // Friendly name to refer to the dimension in the layer.
+	Size     int    // The total number of elements in the dimension.
+	TileSize int    // The size of the tiles in the dimension. Does not need to be a factor of Size.
+	Axis     *Axis  // Optional axis metadata describing the units and range of this dimension.
 }
 
 // Get the size in bytes of this dimension description as it is laid out and written to disk.
@@ -24,14 +30,20 @@ func (d Dimension) HeaderSize(h Header) int {
 	// Add 4 bytes for the channel type with flags
 	size += 4
 	
-	// Add size for optional Minimum value
-	if d.Minimum != nil && d.Type != ChannelUnknown {
-		size += d.Type.Base().Size()
-	}
-	
-	// Add size for optional Step value
-	if d.Step != nil && d.Type != ChannelUnknown {
-		size += d.Type.Base().Size()
+	// Add size for optional axis fields if Axis is present
+	if d.Axis != nil {
+		// Add size for unit string
+		size += 2 + len([]byte(d.Axis.Unit))
+		
+		// Add size for optional Minimum value
+		if d.Axis.Minimum != nil && d.Axis.Type != ChannelUnknown {
+			size += d.Axis.Type.Base().Size()
+		}
+		
+		// Add size for optional Step value
+		if d.Axis.Step != nil && d.Axis.Type != ChannelUnknown {
+			size += d.Axis.Type.Base().Size()
+		}
 	}
 	
 	return size
@@ -72,9 +84,14 @@ func (d Dimension) Write(w io.Writer, h Header) error {
 		return err
 	}
 	
-	// Set flags based on presence of Minimum/Step values
-	axisType := d.Type.WithMin(d.Minimum != nil).WithMax(d.Step != nil)
-	if d.Type == ChannelUnknown {
+	// Determine axis type and flags
+	var axisType ChannelType
+	if d.Axis != nil {
+		axisType = d.Axis.Type.WithMin(d.Axis.Minimum != nil).WithMax(d.Axis.Step != nil)
+		if d.Axis.Type == ChannelUnknown {
+			axisType = ChannelUnknown
+		}
+	} else {
 		axisType = ChannelUnknown
 	}
 	
@@ -84,23 +101,32 @@ func (d Dimension) Write(w io.Writer, h Header) error {
 		return err
 	}
 	
-	// Write optional Minimum value
-	if d.Minimum != nil && d.Type != ChannelUnknown {
-		minBytes := make([]byte, d.Type.Base().Size())
-		d.Type.Base().PutValue(d.Minimum, h.ByteOrder, minBytes)
-		_, err = w.Write(minBytes)
+	// Write axis fields if Axis is present
+	if d.Axis != nil {
+		// Write unit string
+		err = h.WriteFriendly(w, d.Axis.Unit)
 		if err != nil {
 			return err
 		}
-	}
-	
-	// Write optional Step value (using Max flag to indicate Step presence)
-	if d.Step != nil && d.Type != ChannelUnknown {
-		stepBytes := make([]byte, d.Type.Base().Size())
-		d.Type.Base().PutValue(d.Step, h.ByteOrder, stepBytes)
-		_, err = w.Write(stepBytes)
-		if err != nil {
-			return err
+		
+		// Write optional Minimum value
+		if d.Axis.Minimum != nil && d.Axis.Type != ChannelUnknown {
+			minBytes := make([]byte, d.Axis.Type.Base().Size())
+			d.Axis.Type.Base().PutValue(d.Axis.Minimum, h.ByteOrder, minBytes)
+			_, err = w.Write(minBytes)
+			if err != nil {
+				return err
+			}
+		}
+		
+		// Write optional Step value
+		if d.Axis.Step != nil && d.Axis.Type != ChannelUnknown {
+			stepBytes := make([]byte, d.Axis.Type.Base().Size())
+			d.Axis.Type.Base().PutValue(d.Axis.Step, h.ByteOrder, stepBytes)
+			_, err = w.Write(stepBytes)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	
@@ -137,30 +163,42 @@ func (d *Dimension) Read(r io.Reader, h Header) error {
 	}
 	
 	// Extract base type and flags
-	d.Type = encodedType.Base()
+	axisType := encodedType.Base()
 	
-	// Read optional Minimum value
-	if encodedType.HasMin() && d.Type != ChannelUnknown {
-		minBytes := make([]byte, d.Type.Size())
-		_, err = r.Read(minBytes)
+	// Check if axis information is present
+	if axisType != ChannelUnknown || encodedType.HasMin() || encodedType.HasMax() {
+		d.Axis = &Axis{
+			Type: axisType,
+		}
+		
+		// Read unit string
+		unit, err := h.ReadFriendly(r)
 		if err != nil {
 			return err
 		}
-		d.Minimum = d.Type.Value(minBytes, h.ByteOrder)
-	} else {
-		d.Minimum = nil
-	}
-	
-	// Read optional Step value (using Max flag to indicate Step presence)
-	if encodedType.HasMax() && d.Type != ChannelUnknown {
-		stepBytes := make([]byte, d.Type.Size())
-		_, err = r.Read(stepBytes)
-		if err != nil {
-			return err
+		d.Axis.Unit = unit
+		
+		// Read optional Minimum value
+		if encodedType.HasMin() && axisType != ChannelUnknown {
+			minBytes := make([]byte, axisType.Size())
+			_, err = r.Read(minBytes)
+			if err != nil {
+				return err
+			}
+			d.Axis.Minimum = axisType.Value(minBytes, h.ByteOrder)
 		}
-		d.Step = d.Type.Value(stepBytes, h.ByteOrder)
+		
+		// Read optional Step value
+		if encodedType.HasMax() && axisType != ChannelUnknown {
+			stepBytes := make([]byte, axisType.Size())
+			_, err = r.Read(stepBytes)
+			if err != nil {
+				return err
+			}
+			d.Axis.Step = axisType.Value(stepBytes, h.ByteOrder)
+		}
 	} else {
-		d.Step = nil
+		d.Axis = nil
 	}
 	
 	return nil
@@ -172,19 +210,19 @@ func (d Dimension) String() string {
 
 // Returns the axis value at the given dimension index i.
 // The value is calculated as: i * step + minimum
-// Returns nil if the dimension does not have axis information (Type, Minimum, or Step are not set).
+// Returns nil if the dimension does not have axis information.
 func (d Dimension) AxisValue(i int) any {
-	if d.Type == ChannelUnknown || d.Minimum == nil || d.Step == nil {
+	if d.Axis == nil || d.Axis.Type == ChannelUnknown || d.Axis.Minimum == nil || d.Axis.Step == nil {
 		return nil
 	}
 	
 	// Calculate i * step + minimum based on the type
-	return d.Type.AxisValue(i, d.Minimum, d.Step)
+	return d.Axis.Type.AxisValue(i, d.Axis.Minimum, d.Axis.Step)
 }
 
 // Returns the maximum axis value based on the dimension size.
 // The maximum is calculated as: (Size - 1) * step + minimum
-// Returns nil if the dimension does not have axis information (Type, Minimum, or Step are not set).
+// Returns nil if the dimension does not have axis information.
 // Note: Maximum is not serialized to the file as it can be derived from Size.
 func (d Dimension) Maximum() any {
 	if d.Size <= 0 {
