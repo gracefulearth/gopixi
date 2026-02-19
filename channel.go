@@ -621,13 +621,19 @@ func (ctype ChannelType) AxisValue(i int, minimum, step any) any {
 	case ChannelInt128:
 		min, stp := minimum.(int128.Int128), step.(int128.Int128)
 		// i * step + minimum
-		i128 := int128.Int128{H: int64(i >> 32), L: uint64(i)}
+		// Convert int to Int128 properly
+		var i128 int128.Int128
+		if i >= 0 {
+			i128 = int128.Int128{H: 0, L: uint64(i)}
+		} else {
+			i128 = int128.Int128{H: -1, L: uint64(i)}
+		}
 		istep := stp.Mul(i128)
 		return min.Add(istep)
 	case ChannelUint128:
 		min, stp := minimum.(int128.Uint128), step.(int128.Uint128)
 		// i * step + minimum
-		i128 := int128.Uint128{H: uint64(i >> 32), L: uint64(i)}
+		i128 := int128.Uint128{H: 0, L: uint64(i)}
 		istep := stp.Mul(i128)
 		return min.Add(istep)
 	case ChannelFloat128:

@@ -73,11 +73,9 @@ func (d Dimension) Write(w io.Writer, h Header) error {
 	}
 	
 	// Set flags based on presence of Minimum/Step values
-	axisType := d.Type
+	axisType := d.Type.WithMin(d.Minimum != nil).WithMax(d.Step != nil)
 	if d.Type == ChannelUnknown {
 		axisType = ChannelUnknown
-	} else {
-		axisType = d.Type.WithMin(d.Minimum != nil).WithMax(d.Step != nil)
 	}
 	
 	// Write the axis type with flags
