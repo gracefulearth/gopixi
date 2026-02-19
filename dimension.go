@@ -1,8 +1,8 @@
 package gopixi
 
 import (
+	"fmt"
 	"io"
-	"strconv"
 )
 
 // Represents an axis along which tiled, gridded data is stored in a Pixi file. Data sets can have
@@ -12,11 +12,17 @@ type Dimension struct {
 	Name     string // Friendly name to refer to the dimension in the layer.
 	Size     int    // The total number of elements in the dimension.
 	TileSize int    // The size of the tiles in the dimension. Does not need to be a factor of Size.
+	Axis     *Axis  // Optional axis metadata describing the units and range of this dimension.
 }
 
 // Get the size in bytes of this dimension description as it is laid out and written to disk.
 func (d Dimension) HeaderSize(h Header) int {
-	return 2 + len([]byte(d.Name)) + 2*int(h.OffsetSize)
+	size := 2 + len([]byte(d.Name)) + 2*int(h.OffsetSize) // base size: name + size + tileSize
+
+	// Add size for axis fields (includes 4 bytes for type)
+	size += d.Axis.HeaderSize(h)
+
+	return size
 }
 
 // Returns the number of tiles in this dimension.
@@ -39,6 +45,7 @@ func (d Dimension) Write(w io.Writer, h Header) error {
 	if d.Size < d.TileSize {
 		return ErrFormat("dimension tile size cannot be larger than dimension total size")
 	}
+
 	// write the name, then size and tile size
 	err := h.WriteFriendly(w, d.Name)
 	if err != nil {
@@ -48,7 +55,13 @@ func (d Dimension) Write(w io.Writer, h Header) error {
 	if err != nil {
 		return err
 	}
-	return h.WriteOffset(w, int64(d.TileSize))
+	err = h.WriteOffset(w, int64(d.TileSize))
+	if err != nil {
+		return err
+	}
+
+	// Write axis fields using Axis method
+	return d.Axis.Write(w, h)
 }
 
 // Reads a description of the dimension from the given binary stream, according to the specification
@@ -59,19 +72,44 @@ func (d *Dimension) Read(r io.Reader, h Header) error {
 		return err
 	}
 	d.Name = name
+
 	size, err := h.ReadOffset(r)
 	if err != nil {
 		return err
 	}
+
 	tileSize, err := h.ReadOffset(r)
 	if err != nil {
 		return err
 	}
+
 	d.Size = int(size)
 	d.TileSize = int(tileSize)
+
+	// Read the axis type
+	var encodedType ChannelType
+	err = h.Read(r, &encodedType)
+	if err != nil {
+		return err
+	}
+
+	// Check if axis information is present
+	if encodedType.Base() != ChannelUnknown {
+		d.Axis = &Axis{}
+		err = d.Axis.Read(r, h, encodedType.Base())
+		if err != nil {
+			return err
+		}
+	} else {
+		d.Axis = nil
+	}
+
 	return nil
 }
 
 func (d Dimension) String() string {
-	return d.Name + "(" + strconv.Itoa(d.Size) + " / " + strconv.Itoa(d.TileSize) + ")"
+	if d.Axis == nil {
+		return fmt.Sprintf("%s(%d / %d)", d.Name, d.Size, d.TileSize)
+	}
+	return fmt.Sprintf("%s(%d / %d) [%v; %v; %s]", d.Name, d.Size, d.TileSize, d.Axis.Minimum, d.Axis.Step, d.Axis.Unit)
 }
