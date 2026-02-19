@@ -23,111 +23,93 @@ type Axis struct {
 func (a *Axis) HeaderSize(h Header) int {
 	// Always include 4 bytes in the size for the axis type (even if Unknown)
 	size := 4
-	
 	if a == nil || a.Type.Base() == ChannelUnknown {
 		return size
 	}
-	
-	size += 2 + len([]byte(a.Unit)) // unit string
-	
-	// Add size for optional Minimum value
-	if a.Minimum != nil {
-		size += a.Type.Base().Size()
-	}
-	
-	// Add size for optional Step value
-	if a.Step != nil {
-		size += a.Type.Base().Size()
-	}
-	
+	size += 2 + len([]byte(a.Unit))  // unit string
+	size += 2 * a.Type.Base().Size() // minimum and step
 	return size
 }
 
-// Writes the binary description of the axis to the given stream.
-// If the axis is nil, this method does nothing and returns nil.
+// Writes the binary description of the axis to the given stream. If the axis is nil,
+// a description is written that allows readers to make the same determination when
+// deserializing. Non-nil Axis values must have both minimum and step supplied for
+// Write to operate successfully.
 func (a *Axis) Write(w io.Writer, h Header) error {
-	if a == nil {
-		return nil
+	if a != nil && a.Type.Base() == ChannelUnknown {
+		return ErrFormat("axis type ChannelUnknown is invalid when axis metadata is present")
 	}
-	
-	// Validate that if axis is present, minimum and step must not be nil
-	if a.Type.Base() != ChannelUnknown && (a.Minimum == nil || a.Step == nil) {
+
+	if a == nil {
+		return h.Write(w, ChannelUnknown)
+	}
+
+	// Validate minimum and step must not be nil
+	if a.Minimum == nil || a.Step == nil {
 		return ErrFormat("axis with type must have both minimum and step values")
 	}
-	
-	// Only write axis data if Type is not Unknown
-	if a.Type.Base() != ChannelUnknown {
-		// Write unit string
-		err := h.WriteFriendly(w, a.Unit)
-		if err != nil {
-			return err
-		}
-		
-		// Write Minimum value
-		minBytes := make([]byte, a.Type.Base().Size())
-		a.Type.Base().PutValue(a.Minimum, h.ByteOrder, minBytes)
-		_, err = w.Write(minBytes)
-		if err != nil {
-			return err
-		}
-		
-		// Write Step value
-		stepBytes := make([]byte, a.Type.Base().Size())
-		a.Type.Base().PutValue(a.Step, h.ByteOrder, stepBytes)
-		_, err = w.Write(stepBytes)
-		if err != nil {
-			return err
-		}
+
+	err := h.Write(w, a.Type.Base())
+	if err != nil {
+		return err
 	}
-	
+
+	err = h.WriteFriendly(w, a.Unit)
+	if err != nil {
+		return err
+	}
+
+	byteBuf := make([]byte, a.Type.Base().Size())
+	a.Type.Base().PutValue(a.Minimum, h.ByteOrder, byteBuf)
+	_, err = w.Write(byteBuf)
+	if err != nil {
+		return err
+	}
+
+	a.Type.Base().PutValue(a.Step, h.ByteOrder, byteBuf)
+	_, err = w.Write(byteBuf)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
-// Reads a description of the axis from the given binary stream.
-// The encodedType parameter contains the type with flags indicating presence of Minimum/Step.
-func (a *Axis) Read(r io.Reader, h Header, encodedType ChannelType) error {
-	// Extract base type
-	axisType := encodedType.Base()
-	a.Type = axisType
-	
-	// Read unit string
+// Reads a description of the axis from the given binary stream, according to the
+// type of axis value supplied from a previous read.
+func (a *Axis) Read(r io.Reader, h Header, baseType ChannelType) error {
+	a.Type = baseType
+
 	unit, err := h.ReadFriendly(r)
 	if err != nil {
 		return err
 	}
 	a.Unit = unit
-	
-	// Read optional Minimum value
-	if encodedType.HasMin() && axisType != ChannelUnknown {
-		minBytes := make([]byte, axisType.Size())
-		_, err = r.Read(minBytes)
-		if err != nil {
-			return err
-		}
-		a.Minimum = axisType.Value(minBytes, h.ByteOrder)
+
+	readBytes := make([]byte, baseType.Size())
+	_, err = r.Read(readBytes)
+	if err != nil {
+		return err
 	}
-	
-	// Read optional Step value
-	if encodedType.HasMax() && axisType != ChannelUnknown {
-		stepBytes := make([]byte, axisType.Size())
-		_, err = r.Read(stepBytes)
-		if err != nil {
-			return err
-		}
-		a.Step = axisType.Value(stepBytes, h.ByteOrder)
+	a.Minimum = baseType.Value(readBytes, h.ByteOrder)
+
+	_, err = r.Read(readBytes)
+	if err != nil {
+		return err
 	}
-	
+	a.Step = baseType.Value(readBytes, h.ByteOrder)
+
 	return nil
 }
 
 // Returns the axis value at the given dimension index i.
 // The value is calculated as: i * step + minimum
 // Returns nil if the axis is nil or does not have complete information.
-func (a *Axis) AxisValue(i int) any {
+func (a *Axis) StepValue(i int) any {
 	if a == nil || a.Type.Base() == ChannelUnknown || a.Minimum == nil || a.Step == nil {
 		return nil
 	}
-	
+
 	// Calculate i * step + minimum based on the type
 	switch a.Type.Base() {
 	case ChannelInt8:

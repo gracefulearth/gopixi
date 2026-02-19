@@ -24,7 +24,7 @@ func TestDimensionHeaderSize(t *testing.T) {
 		if dim.HeaderSize(header) != expectedSize {
 			t.Errorf("unexpected dimension header size without axis info: got %d, want %d", dim.HeaderSize(header), expectedSize)
 		}
-		
+
 		// Test dimension with axis info
 		unitStr := "meters"
 		dimWithAxis := Dimension{
@@ -225,7 +225,7 @@ func TestDimensionAxisValue(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := test.dimension.Axis.AxisValue(test.index)
+			got := test.dimension.Axis.StepValue(test.index)
 			if !reflect.DeepEqual(got, test.want) {
 				t.Errorf("got %v (%T), want %v (%T)", got, got, test.want, test.want)
 			}
@@ -325,7 +325,7 @@ func TestDimensionMaximum(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var got any = nil
 			if test.dimension.Axis != nil && test.dimension.Size > 0 {
-				got = test.dimension.Axis.AxisValue(test.dimension.Size - 1)
+				got = test.dimension.Axis.StepValue(test.dimension.Size - 1)
 			}
 			if !reflect.DeepEqual(got, test.want) {
 				t.Errorf("got %v (%T), want %v (%T)", got, got, test.want, test.want)
