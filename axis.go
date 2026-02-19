@@ -24,7 +24,7 @@ func (a *Axis) HeaderSize(h Header) int {
 	// Always include 4 bytes in the size for the axis type (even if Unknown)
 	size := 4
 	
-	if a == nil || a.Type == ChannelUnknown {
+	if a == nil || a.Type.Base() == ChannelUnknown {
 		return size
 	}
 	
@@ -51,12 +51,12 @@ func (a *Axis) Write(w io.Writer, h Header) error {
 	}
 	
 	// Validate that if axis is present, minimum and step must not be nil
-	if a.Type != ChannelUnknown && (a.Minimum == nil || a.Step == nil) {
+	if a.Type.Base() != ChannelUnknown && (a.Minimum == nil || a.Step == nil) {
 		return ErrFormat("axis with type must have both minimum and step values")
 	}
 	
 	// Only write axis data if Type is not Unknown
-	if a.Type != ChannelUnknown {
+	if a.Type.Base() != ChannelUnknown {
 		// Write unit string
 		err := h.WriteFriendly(w, a.Unit)
 		if err != nil {
@@ -124,7 +124,7 @@ func (a *Axis) Read(r io.Reader, h Header, encodedType ChannelType) error {
 // The value is calculated as: i * step + minimum
 // Returns nil if the axis is nil or does not have complete information.
 func (a *Axis) AxisValue(i int) any {
-	if a == nil || a.Type == ChannelUnknown || a.Minimum == nil || a.Step == nil {
+	if a == nil || a.Type.Base() == ChannelUnknown || a.Minimum == nil || a.Step == nil {
 		return nil
 	}
 	
@@ -196,15 +196,4 @@ func (a *Axis) AxisValue(i int) any {
 	default:
 		return nil
 	}
-}
-
-// Returns the maximum axis value based on the dimension size.
-// The maximum is calculated as: (size - 1) * step + minimum
-// Returns nil if the axis is nil or does not have complete information.
-// Note: Maximum is not serialized to the file as it can be derived from the dimension size.
-func (a *Axis) Maximum(size int) any {
-	if size <= 0 {
-		return nil
-	}
-	return a.AxisValue(size - 1)
 }

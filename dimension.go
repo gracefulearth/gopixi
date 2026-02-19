@@ -64,7 +64,7 @@ func (d Dimension) Write(w io.Writer, h Header) error {
 	var axisType ChannelType
 	if d.Axis != nil {
 		// It is invalid to have axis metadata with an unknown channel type
-		if d.Axis.Type == ChannelUnknown {
+		if d.Axis.Type.Base() == ChannelUnknown {
 			return ErrFormat("axis type ChannelUnknown is invalid when axis metadata is present")
 		}
 		axisType = d.Axis.Type.WithMin(d.Axis.Minimum != nil).WithMax(d.Axis.Step != nil)

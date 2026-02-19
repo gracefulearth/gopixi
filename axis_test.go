@@ -76,12 +76,6 @@ func TestAxisNilReceiver(t *testing.T) {
 	if val != nil {
 		t.Errorf("expected AxisValue to return nil for nil axis, got %v", val)
 	}
-	
-	// Test that nil axis Maximum returns nil
-	max := axis.Maximum(100)
-	if max != nil {
-		t.Errorf("expected Maximum to return nil for nil axis, got %v", max)
-	}
 }
 
 func TestAxisHeaderSize(t *testing.T) {
